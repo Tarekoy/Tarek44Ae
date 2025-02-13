@@ -1,0 +1,103 @@
+from telethon import TelegramClient, events
+from config import API_ID, API_HASH, BOT_TOKEN=8027805011:AAHNnRgy-ir09oHN3uSsWYSLS7NyO6ZyJhU ADMIN_USER_ID, 7312762616,ZONE_ID, 2799758,MIN_WITHDRAW_AMOUNT=50
+
+# Bot Client চালু করা
+client = TelegramClient("bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN) 8027805011:AAHNnRgy-ir09oHN3uSsWYSLS7NyO6ZyJhU 
+
+# ইউজারদের ব্যালেন্স ট্র্যাক করতে Dictionary ব্যবহার করছি
+user_data = {}
+
+@client.on(events.NewMessage(pattern="/start"))
+async def start(event):
+    user_id = event.sender_id
+    if user_id not in user_data:
+        user_data[user_id] = {"ads_watched": 0, "balance": 0.0}
+
+    await event.respond(
+        "👋 Welcome to the Monetag Ad Bot!\n\n"
+        "🎯 Watch ads & earn money!\n"
+        "💰 Use /balance to check earnings\n"
+        "⚡ Use /watch_ad to watch an ad\n"
+        "🏧 Use /withdraw to request payment"
+    )
+
+@client.on(events.NewMessage(pattern="/watch_ad"))
+async def watch_ad(event):
+    user_id = event.sender_id
+
+    if user_id not in user_data:
+        user_data[user_id] = {"ads_watched": 10, "balance": 0.0}
+
+    ad_url = f"https://syndication.exoclick.com/tag.php?zoneid={ZONE_ID}"
+
+    user_data[user_id]["ads_watched"] += 1
+    user_data[user_id]["balance"] += 0.15  # প্রতিটি বিজ্ঞাপনের জন্য 0.15 টাকা
+
+    await event.respond(
+        f"🔔 Ad Watched Successfully!\n\n"
+        f"📊 Total Ads Watched: {user_data[user_id]['ads_watched']}\n"
+        f"💰 Earned Balance: {user_data[user_id]['balance']:.2f} BDT\n\n"
+        f"👉 [Click Here to Watch Ad]({ad_url})",
+        link_preview=False
+    )
+
+@client.on(events.NewMessage(pattern="/balance"))
+async def check_balance(event):
+    user_id = event.sender_id
+
+    if user_id not in user_data:
+        await event.respond("🚫 You haven't watched any ads yet! Start earning with /watch_ad")
+        return
+
+    balance = user_data[user_id]["balance"]
+    await event.respond(f"💰 Your Current Balance: {balance:.2f} BDT")
+
+@client.on(events.NewMessage(pattern="/withdraw"))
+async def withdraw(event):
+    user_id = event.sender_id
+
+    if user_id not in user_data or user_data[user_id]["balance"] < MIN_WITHDRAW_AMOUNT:
+        await event.respond(f"🚫 Minimum withdraw amount is {MIN_WITHDRAW_AMOUNT} BDT")
+        return
+
+    await event.respond(
+        "🏧 Withdrawal Request Form\n\n"
+        "🔹 Send your payment method & details in this format:\n\n"
+        "/request_withdraw bkash 017XXXXXXXX 100"
+    )
+
+@client.on(events.NewMessage(pattern="/request_withdraw (.*)"))
+async def request_withdraw(event):
+    user_id = event.sender_id
+    if user_id not in user_data or user_data[user_id]["balance"] < MIN_WITHDRAW_AMOUNT:
+        await event.respond(f"🚫 Insufficient Balance! You need at least {MIN_WITHDRAW_AMOUNT} BDT to withdraw.")
+        return
+
+    args = event.pattern_match.group(1).split()
+    if len(args) != 3:
+        await event.respond("🚫 Invalid Format! Use: /request_withdraw bkash 017XXXXXXXX 100")
+        return
+
+    method, phone, amount = args
+    amount = float(amount)
+
+    if amount > user_data[user_id]["balance"]:
+        await event.respond("🚫 You don't have enough balance!")
+        return
+
+    # ইউজারের ব্যালেন্স কমানো
+    user_data[user_id]["balance"] -= amount
+
+    # অ্যাডমিনকে উইথড্রয়াল রিকোয়েস্ট পাঠানো
+    await client.send_message(
+        ADMIN_USER_ID,7312762616
+        f"📢 New Withdrawal Request\n\n"
+        f"👤 User: {user_id}\n"
+        f"💰 Amount: {amount} BDT\n"
+        f"🏦 Method: {method}\n"
+        f"📞 Phone: {phone}"
+    )
+
+    await event.respond("✅ Withdrawal request sent! Admin will process it soon.")
+
+client.run_until_disconnected()
